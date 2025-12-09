@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartBooks | Intelligent Finance</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SortableJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&display=swap');
+        
+        body { font-family: 'Manrope', sans-serif; background-color: #f3f4f6; color: #1f2937; }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+        /* SmartBooks Block Styling */
+        .smart-block { 
+            position: relative; 
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid transparent;
+        }
+        .smart-block:hover { 
+            background-color: #ffffff; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            border-color: #e5e7eb;
+            border-radius: 0.75rem;
+        }
+        .smart-block:hover .block-controls { opacity: 1; transform: translateX(0); }
+        
+        .block-controls { 
+            opacity: 0; 
+            transition: all 0.2s;
+            position: absolute;
+            left: -32px;
+            top: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            transform: translateX(10px);
+        }
+        .control-btn { color: #94a3b8; cursor: pointer; padding: 4px; border-radius: 4px; }
+        .control-btn:hover { color: #475569; background-color: #f1f5f9; }
+        .delete-btn:hover { color: #ef4444; background-color: #fef2f2; }
+
+        /* Modal Overlay */
+        .modal-bg { background-color: rgba(15, 23, 42, 0.5); backdrop-filter: blur(4px); }
+        
+        /* Animations */
+        .fade-in { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Gradients */
+        .cover-gradient-ind { background: linear-gradient(135deg, #6366f1 0%, #a5b4fc 100%); }
+        .cover-gradient-sme { background: linear-gradient(135deg, #0f766e 0%, #2dd4bf 100%); }
+        .cover-gradient-bad { background: linear-gradient(135deg, #f43f5e 0%, #fda4af 100%); }
+
+        /* Invoice Print Styles */
+        @media print {
+            body * { visibility: hidden; }
+            #invoice-print-area, #invoice-print-area * { visibility: visible; }
+            #invoice-print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 20px; background: white; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body class="h-screen overflow-hidden relative selection:bg-indigo-100 selection:text-indigo-900">
+
+    <!-- LOGIN SCREEN -->
+    <div id="login-screen" class="absolute inset-0 z-50 bg-gray-50 flex flex-col items-center justify-center p-4">
+        <div class="bg-white p-10 rounded-2xl shadow-2xl w-full max-w-md text-center fade-in border border-gray-100">
+            <div class="text-5xl mb-6 text-indigo-600"><i class="fa-solid fa-book-open-reader"></i></div>
+            <h1 class="text-3xl font-bold text-gray-900 mb-2 tracking-tight">SmartBooks</h1>
+            <p class="text-gray-500 mb-8 font-medium">Intelligent Financial Tracking</p>
+
+            <div class="space-y-4">
+                <button onclick="auth.requestBotLogin()" class="w-full bg-gray-900 hover:bg-black text-white font-semibold py-4 rounded-xl shadow-lg transition transform hover:-translate-y-0.5 flex items-center justify-center space-x-3">
+                    <i class="fa-solid fa-robot text-lg text-indigo-400"></i>
+                    <div class="text-left">
+                        <div class="text-sm font-bold">Presentation Mode</div>
+                        <div class="text-xs text-gray-400">Bot Access Only</div>
+                    </div>
+                </button>
+                <button onclick="auth.login('user')" class="w-full bg-white border border-gray-200 hover:border-indigo-300 hover:shadow-md text-gray-700 font-semibold py-4 rounded-xl transition flex items-center justify-center space-x-3 group">
+                    <i class="fa-solid fa-user text-lg text-gray-400 group-hover:text-indigo-500 transition"></i>
+                    <div class="text-left">
+                        <div class="text-sm font-bold">Real User Login</div>
+                        <div class="text-xs text-gray-400">Start fresh workspace</div>
+                    </div>
+                </button>
+            </div>
+            <p class="mt-8 text-xs text-gray-400 font-mono">v4.0 Pro Edition</p>
+        </div>
+    </div>
+
+    <!-- APP CONTAINER -->
+    <div id="app-container" class="flex h-full w-full hidden opacity-0 transition-opacity duration-500">
+        
+        <!-- SIDEBAR -->
+        <aside class="w-64 bg-white border-r border-gray-200 flex flex-col hidden md:flex z-20 shadow-sm">
+            <!-- User Profile -->
+            <div class="p-5 border-b border-gray-100">
+                <div class="flex items-center space-x-3 mb-5 cursor-pointer hover:bg-gray-50 p-2 -mx-2 rounded-lg transition" onclick="modal.open('settings')">
+                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 text-white flex items-center justify-center font-bold text-lg shadow-md" id="sidebar-avatar">JD</div>
+                    <div>
+                        <div class="text-sm font-bold text-gray-900" id="sidebar-name">John Doe</div>
+                        <div class="text-xs text-indigo-500 font-medium" id="sidebar-plan">Pro Plan</div>
+                    </div>
+                </div>
+                <!-- Mode Switcher -->
+                <div class="bg-gray-100 p-1 rounded-lg flex text-xs font-semibold">
+                    <button onclick="app.switchMode('individual')" id="btn-ind" class="flex-1 py-2 text-center rounded-md shadow-sm bg-white transition-all text-gray-800">Personal</button>
+                    <button onclick="app.switchMode('sme')" id="btn-sme" class="flex-1 py-2 text-center rounded-md text-gray-500 hover:text-gray-900 transition-all">Business</button>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+                <div class="text-[10px] font-bold text-gray-400 px-3 py-2 tracking-wider uppercase">Analytics</div>
+                <a onclick="app.scrollToBlock('stats')" class="cursor-pointer flex items-center space-x-3 px-3 py-2.5 bg-indigo-50 text-indigo-700 rounded-lg transition font-medium">
+                    <i class="fa-solid fa-chart-pie w-5"></i>
+                    <span class="text-sm">Overview</span>
+                </a>
+                <a onclick="app.scrollToBlock('chart')" class="cursor-pointer flex items-center space-x-3 px-3 py-2.5 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg transition font-medium">
+                    <i class="fa-solid fa-chart-column w-5"></i>
+                    <span class="text-sm">Reports</span>
+                </a>
+                
+                <div class="text-[10px] font-bold text-gray-400 px-3 py-2 mt-4 tracking-wider uppercase">Management</div>
+                <a onclick="app.scrollToBlock('transactions')" class="cursor-pointer flex items-center space-x-3 px-3 py-2.5 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg transition font-medium">
+                    <i class="fa-solid fa-receipt w-5"></i>
+                    <span class="text-sm">Ledger</span>
+                </a>
+                <!-- INVOICE TAB (SME ONLY) -->
+                <a id="nav-invoice" onclick="invoice.openBuilder()" class="cursor-pointer flex items-center space-x-3 px-3 py-2.5 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg transition font-medium hidden">
+                    <i class="fa-solid fa-file-invoice-dollar w-5"></i>
+                    <span class="text-sm">Invoices</span>
+                </a>
+            </nav>
+            
+            <!-- Footer -->
+            <div class="p-4 border-t border-gray-200 bg-gray-50">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-book-open text-indigo-600"></i>
+                        <span class="text-sm font-bold text-gray-800">SmartBooks</span>
+                    </div>
+                    <div class="flex items-center space-x-1 text-orange-500 font-bold text-xs">
+                        <i class="fa-solid fa-fire"></i>
+                        <span id="streak-display">0</span>
+                    </div>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-1.5 mb-2 overflow-hidden">
+                    <div id="xp-bar" class="bg-indigo-500 h-1.5 rounded-full transition-all duration-700" style="width: 0%"></div>
+                </div>
+                <div class="flex justify-between items-center text-[10px] text-gray-500 font-medium">
+                    <span id="xp-text">0 XP</span>
+                    <button onclick="auth.logout()" class="text-gray-400 hover:text-red-500 transition" title="Sign Out"><i class="fa-solid fa-right-from-bracket"></i> Sign Out</button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT -->
+        <main class="flex-1 flex flex-col h-full relative bg-[#f8fafc]">
+            <!-- Header -->
+            <header class="h-16 border-b border-gray-200 flex items-center px-8 bg-white justify-between sticky top-0 z-10 shadow-sm">
+                <div class="flex items-center space-x-4">
+                    <button class="md:hidden text-gray-500"><i class="fa-solid fa-bars"></i></button>
+                    <div class="flex items-center text-sm text-gray-500">
+                        <span class="font-bold text-gray-800 text-lg" id="page-context">Dashboard</span>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span id="demo-indicator" class="hidden text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full tracking-wide">BOT SESSION</span>
+                    <button onclick="app.resetData()" class="text-xs text-red-400 hover:text-red-600 font-medium hover:underline">Reset Workspace</button>
+                </div>
+            </header>
+
+            <!-- Scrollable Area -->
+            <div class="flex-1 overflow-y-auto p-8 md:px-16 lg:px-24 scroll-smooth" id="main-scroll">
+                
+                <!-- COVER AREA -->
+                <div class="group relative mb-12">
+                    <div id="header-cover" class="h-48 w-full rounded-2xl mb-8 opacity-95 shadow-md relative overflow-hidden transition-all duration-500">
+                        <div class="absolute inset-0 bg-black/5 group-hover:bg-transparent transition"></div>
+                        <div class="absolute top-5 right-5 bg-white/90 backdrop-blur-md px-4 py-2 rounded-lg shadow-sm flex items-center space-x-3 border border-gray-100">
+                            <i class="fa-regular fa-calendar-days text-indigo-600"></i>
+                            <input type="month" id="budget-date" onchange="app.changeDate(this.value)" class="bg-transparent border-none text-sm text-gray-800 font-bold focus:ring-0 outline-none cursor-pointer uppercase tracking-wider">
+                        </div>
+                    </div>
+                    <div class="absolute -bottom-8 left-10 shadow-lg rounded-2xl bg-white p-1 text-5xl flex items-center justify-center w-20 h-20 select-none border-4 border-white" id="header-icon">🏡</div>
+                    <div class="ml-36 mt-2">
+                        <input type="text" id="header-title" onchange="app.updateTitle(this.value)" class="text-4xl font-extrabold text-gray-900 w-full bg-transparent outline-none border-none placeholder-gray-300 hover:bg-gray-100/50 rounded-lg px-2 transition -ml-2" value="My Budget">
+                    </div>
+                </div>
+
+                <!-- Gamification Banner -->
+                <div id="quest-banner" class="bg-gradient-to-r from-white to-indigo-50 border border-indigo-100 rounded-xl p-5 mb-10 flex items-center justify-between shadow-sm">
+                    <div class="flex items-center space-x-4">
+                        <div class="bg-white p-3 rounded-full text-indigo-600 shadow-sm border border-indigo-50"><i class="fa-solid fa-bullseye"></i></div>
+                        <div><h3 class="font-bold text-gray-900 text-sm">Monthly Target</h3><p class="text-gray-500 text-xs mt-0.5" id="quest-text">Loading...</p></div>
+                    </div>
+                    <button id="quest-btn" onclick="app.completeQuest()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-5 py-2.5 rounded-lg font-bold transition active:scale-95 shadow-md shadow-indigo-200">Complete</button>
+                </div>
+
+                <!-- BLOCKS CONTAINER -->
+                <div id="block-container" class="space-y-8 pb-32 pl-2"></div>
+
+                <!-- Add Block Button -->
+                <div onclick="modal.open('add-block')" class="group flex items-center space-x-3 text-gray-400 hover:text-indigo-600 cursor-pointer mt-8 py-4 transition pl-2 border-t-2 border-dashed border-gray-200 hover:border-indigo-200 hover:bg-indigo-50/30 rounded-lg justify-center">
+                    <i class="fa-solid fa-circle-plus"></i><span class="text-sm font-bold">Add Smart Block</span>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- MODALS -->
+    
+    <!-- 1. Bot Login -->
+    <div id="modal-bot-login" class="fixed inset-0 modal-bg hidden z-[60] flex items-center justify-center fade-in">
+        <div class="bg-white rounded-2xl shadow-2xl w-80 p-6 border border-gray-100">
+            <h3 class="text-lg font-bold mb-4 text-gray-900 flex items-center gap-2"><i class="fa-solid fa-shield-halved text-indigo-600"></i> Secured Access</h3>
+            <div class="space-y-3">
+                <input type="text" id="bot-user" class="w-full border border-gray-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Username (bot)">
+                <input type="password" id="bot-pass" class="w-full border border-gray-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Password (1111)">
+                <div id="bot-error" class="text-xs text-red-500 hidden font-bold">Invalid credentials.</div>
+            </div>
+            <div class="flex justify-end gap-2 mt-4">
+                <button onclick="document.getElementById('modal-bot-login').classList.add('hidden')" class="px-3 py-1.5 text-xs font-bold text-gray-400 hover:text-gray-600">CANCEL</button>
+                <button onclick="auth.verifyBotLogin()" class="px-4 py-1.5 bg-gray-900 text-white text-xs font-bold rounded-lg hover:bg-black">AUTHENTICATE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Invoice Builder -->
+    <div id="modal-invoice-builder" class="fixed inset-0 modal-bg hidden z-[60] flex items-center justify-center fade-in">
+        <div class="bg-white rounded-2xl shadow-2xl w-[700px] h-[90%] flex flex-col overflow-hidden">
+            <!-- Header -->
+            <div class="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                <h3 class="text-xl font-bold text-gray-900"><i class="fa-solid fa-file-invoice text-indigo-600 mr-2"></i>Create Invoice</h3>
+                <button onclick="document.getElementById('modal-invoice-builder').classList.add('hidden')" class="text-gray-400 hover:text-gray-700"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <!-- Body -->
+            <div class="flex-1 overflow-y-auto p-8 space-y-6">
+                <div class="grid grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1.5">Client Name</label>
+                        <input type="text" id="inv-client" class="w-full border border-gray-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Acme Corp">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1.5">Invoice Date</label>
+                        <input type="date" id="inv-date" class="w-full border border-gray-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                </div>
+                
+                <!-- Line Items -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Line Items</label>
+                    <div class="border border-gray-200 rounded-lg overflow-hidden">
+                        <table class="w-full text-sm text-left">
+                            <thead class="bg-gray-50 text-gray-500 font-medium">
+                                <tr>
+                                    <th class="px-4 py-2 w-1/2">Description</th>
+                                    <th class="px-4 py-2 w-20">Qty</th>
+                                    <th class="px-4 py-2 w-24">Price</th>
+                                    <th class="px-4 py-2 w-10"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="inv-items-container" class="divide-y divide-gray-100">
+                                <!-- Dynamic Items -->
+                            </tbody>
+                        </table>
+                        <div onclick="invoice.addItem()" class="bg-gray-50 p-2 text-center text-xs font-bold text-indigo-600 cursor-pointer hover:bg-gray-100 border-t border-gray-200">+ Add Item</div>
+                    </div>
+                </div>
+            </div>
+            <!-- Footer -->
+            <div class="px-8 py-5 border-t border-gray-100 flex justify-between items-center bg-gray-50">
+                <div class="text-sm text-gray-500">Total: <span id="inv-total-display" class="text-lg font-bold text-gray-900 ml-2">$0.00</span></div>
+                <button onclick="invoice.generate()" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg shadow-lg shadow-indigo-200 flex items-center gap-2">
+                    <i class="fa-solid fa-print"></i> Generate PDF
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden Print Area -->
+    <div id="invoice-print-area" class="hidden bg-white p-10">
+        <div class="flex justify-between items-start mb-10">
+            <div>
+                <h1 class="text-4xl font-bold text-gray-900 mb-2">INVOICE</h1>
+                <div class="text-gray-500 text-sm">#INV-<span id="print-inv-id">001</span></div>
+            </div>
+            <div class="text-right">
+                <div class="font-bold text-xl text-indigo-600 mb-1">SmartBooks Inc.</div>
+                <div class="text-gray-500 text-sm">123 Business Rd<br>Tech City, 90210</div>
+            </div>
+        </div>
+        <div class="mb-10 flex justify-between">
+            <div>
+                <div class="text-xs font-bold text-gray-400 uppercase mb-1">Bill To</div>
+                <div class="font-bold text-lg text-gray-800" id="print-client">Client Name</div>
+            </div>
+            <div class="text-right">
+                <div class="text-xs font-bold text-gray-400 uppercase mb-1">Date</div>
+                <div class="font-bold text-lg text-gray-800" id="print-date">Oct 24, 2023</div>
+            </div>
+        </div>
+        <table class="w-full text-left mb-10">
+            <thead class="border-b-2 border-gray-100">
+                <tr><th class="py-3 font-bold text-gray-600">Description</th><th class="py-3 font-bold text-gray-600 text-right">Qty</th><th class="py-3 font-bold text-gray-600 text-right">Price</th><th class="py-3 font-bold text-gray-600 text-right">Total</th></tr>
+            </thead>
+            <tbody id="print-items" class="divide-y divide-gray-100"></tbody>
+        </table>
+        <div class="flex justify-end border-t-2 border-gray-100 pt-6">
+            <div class="text-right">
+                <div class="text-sm font-bold text-gray-500 uppercase mb-1">Total Due</div>
+                <div class="text-3xl font-bold text-indigo-600" id="print-total">$0.00</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Generic Modals (Settings, Add Block, Add Item, Receipt) -->
+    <div id="modal-settings" class="fixed inset-0 modal-bg hidden z-50 flex items-center justify-center fade-in" onclick="if(event.target === this) modal.closeAll()"><div class="bg-white rounded-2xl shadow-2xl w-96 p-8"><h3 class="text-xl font-bold mb-6 text-gray-900">Preferences</h3><div class="space-y-5"><div><label class="block text-xs font-bold text-gray-500 uppercase mb-1.5">User Name</label><input type="text" id="setting-name" class="w-full border border-gray-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="John Doe"></div><div><label class="block text-xs font-bold text-gray-500 uppercase mb-1.5">Currency</label><select id="setting-currency" class="w-full border border-gray-200 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none"><option value="$">USD ($)</option><option value="€">EUR (€)</option><option value="£">GBP (£)</option><option value="USh">UGX (Shs)</option></select></div></div><div class="flex justify-end mt-8 gap-3"><button onclick="modal.closeAll()" class="px-4 py-2 text-gray-500 text-sm font-medium hover:bg-gray-50 rounded-lg">Cancel</button><button onclick="app.saveSettings()" class="px-5 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700">Save</button></div></div></div>
+    <div id="modal-add-block" class="fixed inset-0 modal-bg hidden z-50 flex items-center justify-center fade-in" onclick="if(event.target === this) modal.closeAll()"><div class="bg-white rounded-2xl shadow-2xl w-[400px] p-8"><h3 class="text-xl font-bold mb-2 text-gray-900">Add Component</h3><p class="text-gray-400 text-xs mb-6">Select a block type.</p><div class="mb-5"><label class="block text-xs font-bold text-gray-500 uppercase mb-1.5">Custom Title</label><input type="text" id="custom-block-title" class="w-full border border-gray-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"></div><div class="space-y-3"><button onclick="app.addBlock('stats')" class="w-full text-left p-3.5 hover:bg-indigo-50 rounded-xl border border-gray-200 flex items-center space-x-4 transition"><div class="bg-blue-100 text-blue-600 p-2.5 rounded-lg"><i class="fa-solid fa-chart-line"></i></div><div><div class="font-bold text-sm text-gray-800">Balance</div></div></button><button onclick="app.addBlock('chart')" class="w-full text-left p-3.5 hover:bg-indigo-50 rounded-xl border border-gray-200 flex items-center space-x-4 transition"><div class="bg-pink-100 text-pink-600 p-2.5 rounded-lg"><i class="fa-solid fa-chart-pie"></i></div><div><div class="font-bold text-sm text-gray-800">Smart Chart</div></div></button><button onclick="app.addBlock('transactions')" class="w-full text-left p-3.5 hover:bg-indigo-50 rounded-xl border border-gray-200 flex items-center space-x-4 transition"><div class="bg-emerald-100 text-emerald-600 p-2.5 rounded-lg"><i class="fa-solid fa-table-list"></i></div><div><div class="font-bold text-sm text-gray-800">Ledger</div></div></button><button onclick="app.addBlock('goals')" class="w-full text-left p-3.5 hover:bg-indigo-50 rounded-xl border border-gray-200 flex items-center space-x-4 transition"><div class="bg-purple-100 text-purple-600 p-2.5 rounded-lg"><i class="fa-solid fa-list-check"></i></div><div><div class="font-bold text-sm text-gray-800">Tasks</div></div></button></div></div></div>
+    <div id="modal-add-item" class="fixed inset-0 modal-bg hidden z-50 flex items-center justify-center fade-in" onclick="if(event.target === this) modal.closeAll()"><div class="bg-white rounded-2xl shadow-2xl w-[380px] p-8"><h3 class="text-xl font-bold mb-6 text-gray-900" id="modal-item-title">New Entry</h3><div class="space-y-4"><div id="field-type-select" class="hidden"><div class="flex p-1 bg-gray-100 rounded-lg"><button onclick="app.setTransType('expense')" id="btn-type-exp" class="flex-1 py-1.5 text-sm rounded-md font-medium transition-all shadow-sm">Expense</button><button onclick="app.setTransType('income')" id="btn-type-inc" class="flex-1 py-1.5 text-sm rounded-md font-medium transition-all text-gray-500">Income</button></div></div><div><input type="text" id="input-name" class="w-full border border-gray-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Description / Name"></div><div id="field-val-container"><input type="number" id="input-val" class="w-full border border-gray-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none mb-3" placeholder="Amount (0.00)"><div class="relative"><input type="text" id="input-cat" class="w-full border border-gray-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none pl-9" placeholder="Category"><i class="fa-solid fa-tag absolute left-3 top-3 text-gray-400 text-xs"></i></div></div><div id="field-status-container" class="hidden"><label class="flex items-center p-3 border border-gray-100 rounded-lg hover:bg-orange-50 cursor-pointer transition"><input type="checkbox" id="input-pending" class="w-4 h-4 text-orange-500 rounded border-gray-300"><span class="ml-2 text-sm text-gray-600 font-medium">Mark as Pending</span></label></div><div id="field-receipt-container" class="hidden"><label class="flex items-center justify-center w-full border-2 border-dashed border-gray-200 rounded-lg p-3 text-sm cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 text-gray-500 transition"><i class="fa-solid fa-paperclip mr-2"></i><span id="receipt-label">Attach Receipt</span><input type="file" id="input-receipt" class="hidden" onchange="app.handleFileSelect(this)"></label></div></div><div class="flex justify-end gap-3 mt-8"><button onclick="modal.closeAll()" class="px-4 py-2 text-gray-500 text-sm font-medium hover:bg-gray-50 rounded-lg">Cancel</button><button id="btn-save-item" class="px-6 py-2 bg-gray-900 hover:bg-black text-white rounded-lg text-sm font-bold shadow-lg shadow-gray-200 transition">Save Entry</button></div></div></div>
+    <div id="modal-receipt" class="fixed inset-0 modal-bg hidden z-50 flex items-center justify-center fade-in" onclick="if(event.target === this) modal.closeAll()"><div class="bg-white rounded-2xl shadow-2xl w-96 p-8 text-center relative"><button onclick="modal.closeAll()" class="absolute top-4 right-4 text-gray-300 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button><div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400"><i class="fa-solid fa-file-invoice text-3xl"></i></div><h3 class="text-xl font-bold mb-2 text-gray-900">Receipt Details</h3><div class="bg-gray-50 p-4 rounded-xl text-xs text-left font-mono text-gray-600 border border-gray-100 mb-6"><div class="flex justify-between mb-2"><span>Status:</span> <span class="text-green-600 font-bold">Verified</span></div><div class="flex justify-between"><span>Source:</span> <span>Bot API</span></div></div><button onclick="modal.closeAll()" class="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-bold transition">Close Preview</button></div></div>
+
+    <!-- LOGIC -->
+    <script>
+        // --- DATA & CONFIG ---
+        const CHART_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+        
+        const realUserStructure = {
+            individual: [
+                { type: 'stats', id: 'st1', title: 'Monthly Balance', autoCalc: true, value: 0, trend: 'Net' },
+                { type: 'chart', id: 'ch1', title: 'Spending Analysis' },
+                { type: 'pending', id: 'pd1', title: 'Pending Transactions' },
+                { type: 'transactions', id: 'tr1', title: 'Ledger', items: [] },
+                { type: 'goals', id: 'gl1', title: 'Goals', items: [] }
+            ],
+            sme: [
+                { type: 'stats', id: 'st2', title: 'Net Profit', autoCalc: true, value: 0, trend: 'Net' },
+                { type: 'chart', id: 'ch2', title: 'Expense Breakdown' },
+                { type: 'pending', id: 'pd2', title: 'Pending Invoices' },
+                { type: 'transactions', id: 'tr2', title: 'Business Ledger', items: [] },
+                { type: 'goals', id: 'gl2', title: 'Compliance', items: [] }
+            ]
+        };
+
+        const generator = {
+            create4MonthHistory: () => {
+                const now = new Date();
+                let demo = { settings: { currency: '$', name: 'SmartBot' }, currentMonth: '', mode: 'individual', xp: 2400, streak: 88, monthlyData: {} };
+                for(let i=0; i<4; i++) {
+                    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+                    const mStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+                    if(i===0) demo.currentMonth = mStr;
+                    demo.monthlyData[`${mStr}-individual`] = generator.getData('individual', i);
+                    demo.monthlyData[`${mStr}-sme`] = generator.getData('sme', i);
+                }
+                return demo;
+            },
+            getData: (mode, offset) => {
+                const isCurr = offset === 0;
+                let blocks = [];
+                if(mode==='individual'){
+                    blocks = JSON.parse(JSON.stringify(realUserStructure.individual));
+                    const baseSalary = 3000;
+                    const bonus = offset === 0 ? 1000 : 0;
+                    const rent = 1200;
+                    const shopping = offset === 3 ? 1500 : 300;
+                    blocks[3].items.push(
+                        { name: 'Salary', val: baseSalary + bonus, type: 'income', category: 'Salary', pending:false },
+                        { name: 'Rent', val: rent, type: 'expense', category: 'Housing', pending:false, receipt:true },
+                        { name: 'Groceries', val: 400 + (offset*20), type: 'expense', category: 'Food', pending:false },
+                        { name: 'Amazon', val: shopping, type: 'expense', category: 'Shopping', pending:false, receipt:true }
+                    );
+                    if(isCurr) blocks[3].items.push({ name: 'Utility Bill', val: 150, type: 'expense', category: 'Housing', pending: true }); 
+                } else {
+                    blocks = JSON.parse(JSON.stringify(realUserStructure.sme));
+                    const sales = 8000 + (offset * -500);
+                    blocks[3].items.push(
+                        { name: 'Client Retainer', val: sales, type: 'income', category: 'Services', pending:false },
+                        { name: 'Office Rent', val: 2000, type: 'expense', category: 'Ops', pending:false, receipt:true },
+                        { name: 'Server Costs', val: 500, type: 'expense', category: 'Tech', pending:false, receipt:true }
+                    );
+                }
+                return { title: mode==='individual'?'Personal Budget':'Business Ops', blocks: blocks };
+            }
+        };
+
+        const auth = {
+            userType: null,
+            requestBotLogin: () => {
+                document.getElementById('modal-bot-login').classList.remove('hidden');
+                document.getElementById('bot-user').value = ''; document.getElementById('bot-pass').value = '';
+                document.getElementById('bot-error').classList.add('hidden');
+            },
+            verifyBotLogin: () => {
+                if(document.getElementById('bot-user').value === 'bot' && document.getElementById('bot-pass').value === '1111') {
+                    document.getElementById('modal-bot-login').classList.add('hidden'); auth.login('demo');
+                } else document.getElementById('bot-error').classList.remove('hidden');
+            },
+            login: (type) => {
+                auth.userType = type;
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('app-container').classList.remove('hidden');
+                setTimeout(() => document.getElementById('app-container').classList.remove('opacity-0'), 50);
+                if(type === 'demo') {
+                    document.getElementById('demo-indicator').classList.remove('hidden');
+                    document.getElementById('sidebar-plan').innerText = "Bot Account";
+                    if(!localStorage.getItem('sb_demo_v4')) localStorage.setItem('sb_demo_v4', JSON.stringify(generator.create4MonthHistory()));
+                } else {
+                    document.getElementById('demo-indicator').classList.add('hidden');
+                    document.getElementById('sidebar-plan').innerText = "Pro Plan";
+                }
+                app.init();
+            },
+            logout: () => { auth.userType = null; location.reload(); }
+        };
+
+        let AppState = {}; let chartInstances = []; let currentTransType = 'expense';
+
+        const app = {
+            init: () => {
+                const key = auth.userType === 'demo' ? 'sb_demo_v4' : 'sb_user_v4';
+                const saved = localStorage.getItem(key);
+                if(saved) AppState = JSON.parse(saved);
+                else {
+                    const now = new Date();
+                    AppState = {
+                        settings: { currency: '$', name: 'User' },
+                        currentMonth: `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`,
+                        mode: 'individual', xp: 0, streak: 0, monthlyData: {}
+                    };
+                }
+                document.getElementById('budget-date').value = AppState.currentMonth;
+                app.ensureMonthData(); app.render(); app.initDrag();
+            },
+            ensureMonthData: () => {
+                const key = `${AppState.currentMonth}-${AppState.mode}`;
+                if(!AppState.monthlyData[key]) {
+                    const defaults = JSON.parse(JSON.stringify(realUserStructure[AppState.mode]));
+                    AppState.monthlyData[key] = { title: AppState.mode === 'individual' ? 'My Budget' : 'Business Ops', blocks: defaults };
+                }
+            },
+            save: () => {
+                const key = auth.userType === 'demo' ? 'sb_demo_v4' : 'sb_user_v4';
+                localStorage.setItem(key, JSON.stringify(AppState)); app.updateUI();
+            },
+            resetData: () => {
+                if(confirm("Reset Workspace?")) {
+                    if(auth.userType === 'demo') localStorage.setItem('sb_demo_v4', JSON.stringify(generator.create4MonthHistory()));
+                    else localStorage.removeItem('sb_user_v4');
+                    location.reload();
+                }
+            },
+            switchMode: (m) => { AppState.mode = m; app.ensureMonthData(); app.render(); },
+            changeDate: (v) => { AppState.currentMonth = v; app.ensureMonthData(); app.render(); },
+            
+            exportCSV: () => {
+                const key = `${AppState.currentMonth}-${AppState.mode}`;
+                const data = AppState.monthlyData[key];
+                let csv = "Date,Name,Type,Category,Amount,Status\n";
+                data.blocks.forEach(b => {
+                    if(b.type === 'transactions') {
+                        b.items.forEach(i => {
+                            csv += `${AppState.currentMonth},"${i.name}",${i.type},${i.category},${i.val},${i.pending?'Pending':'Cleared'}\n`;
+                        });
+                    }
+                });
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = `SmartBooks_${key}.csv`; a.click();
+            },
+
+            calcStats: () => {
+                const key = `${AppState.currentMonth}-${AppState.mode}`;
+                const data = AppState.monthlyData[key];
+                let inc=0, exp=0;
+                data.blocks.forEach(b => {
+                    if(b.type === 'transactions') {
+                        b.items.forEach(i => {
+                            if(!i.pending) { if(i.type === 'income') inc+=i.val; else exp+=i.val; }
+                        });
+                    }
+                });
+                data.blocks.forEach(b => { if(b.type==='stats' && b.autoCalc) b.value = inc-exp; });
+            },
+            render: () => {
+                app.calcStats();
+                const key = `${AppState.currentMonth}-${AppState.mode}`;
+                const data = AppState.monthlyData[key];
+                const cover = document.getElementById('header-cover');
+                const isInd = AppState.mode === 'individual';
+                
+                cover.className = `h-48 w-full rounded-2xl mb-8 opacity-95 shadow-md relative overflow-hidden transition-all duration-500 ${isInd ? 'cover-gradient-ind' : 'cover-gradient-sme'}`;
+                document.getElementById('header-icon').innerText = isInd ? '🏡' : '🏢';
+                document.getElementById('page-context').innerText = isInd ? 'Personal Dashboard' : 'Business Intelligence';
+                document.getElementById('header-title').value = data.title;
+                document.getElementById('sidebar-name').innerText = AppState.settings.name;
+                document.getElementById('sidebar-avatar').innerText = AppState.settings.name.charAt(0);
+
+                const container = document.getElementById('block-container');
+                container.innerHTML = '';
+                data.blocks.forEach((b, i) => {
+                    const div = document.createElement('div');
+                    div.className = 'smart-block px-5 py-4 relative group/block mb-4 bg-white rounded-xl shadow-sm border border-transparent';
+                    div.setAttribute('data-type', b.type);
+                    div.innerHTML = app.getBlockHTML(b, i);
+                    container.appendChild(div);
+                });
+                app.initCharts(); app.updateUI();
+            },
+            getBlockHTML: (b, i) => {
+                const controls = `<div class="block-controls"><div class="control-btn delete-btn" onclick="app.delBlock(${i})" title="Delete"><i class="fa-solid fa-trash"></i></div><div class="control-btn handle" title="Drag"><i class="fa-solid fa-grip-vertical"></i></div></div>`;
+                let content = '';
+                if(b.type==='stats') {
+                    const color = b.value >= 0 ? 'text-gray-900' : 'text-red-600';
+                    content = `<div><h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">${b.title}</h4><div class="flex items-end space-x-3"><span class="text-3xl font-bold ${color}">${app.format(b.value)}</span></div></div>`;
+                } else if(b.type==='pending') {
+                     const key = `${AppState.currentMonth}-${AppState.mode}`;
+                     let rows = ''; let count = 0;
+                     AppState.monthlyData[key].blocks.forEach((bk, bi) => {
+                         if(bk.type==='transactions') {
+                             bk.items.forEach((it, ii) => {
+                                 if(it.pending) { count++; rows += `<tr class="border-b border-gray-50 last:border-0 hover:bg-orange-50/50 transition"><td class="py-3 text-sm font-medium text-gray-700">${it.name}</td><td class="py-3 text-right text-sm text-gray-500 font-mono">${app.format(it.val)}</td><td class="py-3 text-right"><button onclick="app.clearPending(${bi}, ${ii})" class="text-[10px] font-bold bg-white border border-orange-200 text-orange-600 px-2 py-1 rounded hover:bg-orange-50">APPROVE</button></td></tr>`; }
+                             });
+                         }
+                     });
+                     if(count===0) rows = `<tr><td colspan="3" class="py-4 text-center text-xs text-gray-400 italic">No pending items.</td></tr>`;
+                     content = `<div><div class="flex items-center space-x-2 mb-3 pb-2 border-b border-gray-100"><div class="bg-orange-100 p-1 rounded text-orange-500"><i class="fa-regular fa-clock text-xs"></i></div><span class="text-xs font-bold text-gray-500 uppercase">${b.title}</span></div><table class="w-full"><tbody>${rows}</tbody></table></div>`;
+                } else if(b.type==='transactions') {
+                    const itemsHtml = b.items.map((it, ii) => {
+                        const isInc = it.type==='income';
+                        return `<tr class="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition group/row"><td class="py-3 pl-2"><div class="font-bold text-sm text-gray-800 flex items-center gap-2">${it.name} ${it.pending?'<span class="text-[9px] bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded">PENDING</span>':''} ${it.receipt?'<i onclick="modal.open(\'receipt\')" class="fa-solid fa-paperclip text-indigo-400 text-xs cursor-pointer hover:text-indigo-600"></i>':''}</div><div class="text-[10px] text-gray-400 font-medium bg-gray-100 w-max px-1.5 rounded mt-0.5">${it.category}</div></td><td class="py-3 text-right font-mono text-sm ${isInc?'text-emerald-600':'text-gray-600'}">${isInc?'+':'-'}${app.format(it.val)}</td><td class="py-3 text-right pr-2"><i onclick="app.delItem(${i}, ${ii})" class="fa-solid fa-trash text-gray-300 hover:text-red-400 cursor-pointer text-xs opacity-0 group-hover/row:opacity-100 transition"></i></td></tr>`;
+                    }).join('');
+                    content = `<div class="w-full"><div class="flex items-center justify-between mb-3 pb-2 border-b border-gray-100"><div class="flex items-center space-x-2"><div class="bg-emerald-100 text-emerald-600 p-1 rounded"><i class="fa-solid fa-list-ul text-xs"></i></div><span class="text-xs font-bold text-gray-500 uppercase">${b.title}</span></div><div class="flex gap-2"><button onclick="app.exportCSV()" class="text-xs text-gray-400 hover:text-indigo-600" title="Export CSV"><i class="fa-solid fa-download"></i></button><button onclick="app.openAdd(${i}, 'transactions')" class="text-[10px] font-bold bg-gray-50 hover:bg-indigo-50 text-gray-500 hover:text-indigo-600 px-2 py-1 rounded transition border border-gray-200">+ ADD</button></div></div><table class="w-full"><tbody>${itemsHtml||'<tr><td class="text-xs text-gray-400 py-2 italic">No entries yet.</td></tr>'}</tbody></table></div>`;
+                } else if(b.type==='chart') {
+                    const isIncome = b.title.toLowerCase().includes('income') || b.title.toLowerCase().includes('revenue');
+                    content = `<div><div class="flex items-center space-x-2 mb-4"><div class="${isIncome?'bg-emerald-100 text-emerald-600':'bg-pink-100 text-pink-600'} p-1 rounded"><i class="fa-solid fa-chart-pie text-xs"></i></div><h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider">${b.title}</h4></div><div class="h-64 w-full relative"><canvas class="app-chart" data-chart-type="${isIncome?'income':'expense'}"></canvas><div class="chart-empty hidden absolute inset-0 flex items-center justify-center text-gray-300 text-sm font-medium">No Data</div></div></div>`;
+                } else if(b.type==='goals') {
+                    const itemsHtml = b.items.map((it, ii) => `<div class="flex items-center space-x-3 py-2 group/item border-b border-gray-50 last:border-0"><div onclick="app.togGoal(${i}, ${ii})" class="w-5 h-5 rounded-full border-2 ${it.checked?'bg-indigo-500 border-indigo-500':'border-gray-300'} flex items-center justify-center cursor-pointer transition">${it.checked?'<i class="fa-solid fa-check text-white text-xs"></i>':''}</div><span class="text-sm text-gray-700 ${it.checked?'line-through text-gray-400':''} flex-1 font-medium">${it.text}</span><i onclick="app.delItem(${i}, ${ii})" class="fa-solid fa-xmark text-gray-300 hover:text-red-400 cursor-pointer opacity-0 group-hover/item:opacity-100 text-xs"></i></div>`).join('');
+                    content = `<div class="w-full"><div class="flex items-center justify-between mb-3 pb-2 border-b border-gray-100"><div class="flex items-center space-x-2"><div class="bg-purple-100 text-purple-600 p-1 rounded"><i class="fa-solid fa-check text-xs"></i></div><span class="text-xs font-bold text-gray-500 uppercase">${b.title}</span></div><button onclick="app.openAdd(${i}, 'goals')" class="text-[10px] font-bold bg-gray-50 hover:bg-indigo-50 text-gray-500 hover:text-indigo-600 px-2 py-1 rounded transition border border-gray-200">+ ADD</button></div><div class="space-y-0.5">${itemsHtml||'<div class="text-xs text-gray-400 py-2 italic">No tasks.</div>'}</div></div>`;
+                }
+                return controls + content;
+            },
+            addBlock: (t) => {
+                const k = `${AppState.currentMonth}-${AppState.mode}`;
+                AppState.monthlyData[k].blocks.push({ type:t, id:Date.now(), title:document.getElementById('custom-block-title').value||'New Component', items:[], autoCalc:t==='stats', value:0, trend:'New' });
+                app.save(); modal.closeAll(); app.render();
+            },
+            delBlock: (i) => { AppState.monthlyData[`${AppState.currentMonth}-${AppState.mode}`].blocks.splice(i, 1); app.save(); app.render(); },
+            delItem: (bi, ii) => { AppState.monthlyData[`${AppState.currentMonth}-${AppState.mode}`].blocks[bi].items.splice(ii, 1); app.save(); app.render(); },
+            togGoal: (bi, ii) => { const k=`${AppState.currentMonth}-${AppState.mode}`; const i=AppState.monthlyData[k].blocks[bi].items[ii]; i.checked=!i.checked; app.save(); app.render(); },
+            clearPending: (bi, ii) => { AppState.monthlyData[`${AppState.currentMonth}-${AppState.mode}`].blocks[bi].items[ii].pending=false; app.save(); app.render(); },
+            openAdd: (bi, type) => {
+                const title = document.getElementById('modal-item-title');
+                document.getElementById('input-name').value = ''; document.getElementById('input-val').value = ''; document.getElementById('input-cat').value = '';
+                if(type==='goals') {
+                    title.innerText = "New Task";
+                    ['field-type-select', 'field-val-container', 'field-status-container', 'field-receipt-container'].forEach(id => document.getElementById(id).classList.add('hidden'));
+                } else {
+                    title.innerText = "New Transaction";
+                    ['field-type-select', 'field-val-container', 'field-status-container', 'field-receipt-container'].forEach(id => document.getElementById(id).classList.remove('hidden'));
+                    app.setTransType('expense');
+                }
+                document.getElementById('btn-save-item').onclick = () => {
+                    const k = `${AppState.currentMonth}-${AppState.mode}`;
+                    const name = document.getElementById('input-name').value;
+                    if(name) {
+                        const block = AppState.monthlyData[k].blocks[bi];
+                        if(type==='goals') block.items.push({ text:name, checked:false });
+                        else block.items.push({ name:name, val:Number(document.getElementById('input-val').value)||0, type:currentTransType, category:document.getElementById('input-cat').value||'General', pending:document.getElementById('input-pending').checked, receipt:document.getElementById('input-receipt').files.length>0 });
+                        app.save(); modal.closeAll(); app.render();
+                    }
+                }
+                modal.open('add-item');
+            },
+            setTransType: (t) => {
+                currentTransType = t;
+                const e = document.getElementById('btn-type-exp'), i = document.getElementById('btn-type-inc');
+                const active = "bg-white border-gray-300 text-gray-900 shadow-sm";
+                const inactive = "bg-transparent text-gray-400 hover:bg-gray-200/50";
+                if(t==='expense') { e.className = `flex-1 py-1.5 text-sm rounded-md font-bold transition-all border ${active} border-red-200 text-red-600`; i.className = `flex-1 py-1.5 text-sm rounded-md font-medium transition-all ${inactive}`; }
+                else { i.className = `flex-1 py-1.5 text-sm rounded-md font-bold transition-all border ${active} border-emerald-200 text-emerald-600`; e.className = `flex-1 py-1.5 text-sm rounded-md font-medium transition-all ${inactive}`; }
+            },
+            format: (v) => `${AppState.settings.currency}${Number(v).toLocaleString(undefined, {minimumFractionDigits:2})}`,
+            saveSettings: () => { AppState.settings.name = document.getElementById('setting-name').value; AppState.settings.currency = document.getElementById('setting-currency').value; app.save(); modal.closeAll(); app.render(); },
+            updateUI: () => {
+                document.getElementById('streak-display').innerText = AppState.streak; document.getElementById('xp-text').innerText = `${AppState.xp} XP`; document.getElementById('xp-bar').style.width = `${Math.min((AppState.xp/5000)*100, 100)}%`;
+                const iBtn = document.getElementById('btn-ind'), sBtn = document.getElementById('btn-sme');
+                if(AppState.mode==='individual') { iBtn.className = "flex-1 py-2 text-center rounded-md transition-all font-bold bg-white text-indigo-600 shadow-sm ring-1 ring-gray-200"; sBtn.className = "flex-1 py-2 text-center rounded-md transition-all font-medium text-gray-500 hover:text-gray-900"; document.getElementById('nav-invoice').classList.add('hidden'); }
+                else { sBtn.className = "flex-1 py-2 text-center rounded-md transition-all font-bold bg-white text-indigo-600 shadow-sm ring-1 ring-gray-200"; iBtn.className = "flex-1 py-2 text-center rounded-md transition-all font-medium text-gray-500 hover:text-gray-900"; document.getElementById('nav-invoice').classList.remove('hidden'); }
+            },
+            initCharts: () => {
+                chartInstances.forEach(c=>c.destroy()); chartInstances=[];
+                const k = `${AppState.currentMonth}-${AppState.mode}`;
+                document.querySelectorAll('.app-chart').forEach((canvas) => {
+                    const chartType = canvas.getAttribute('data-chart-type');
+                    let cats = {};
+                    AppState.monthlyData[k].blocks.forEach(b => {
+                        if(b.type==='transactions') {
+                            b.items.forEach(i => { if(!i.pending && i.type === chartType) { const c = i.category || 'Uncategorized'; cats[c] = (cats[c]||0) + i.val; } });
+                        }
+                    });
+                    const labels = Object.keys(cats);
+                    const container = canvas.parentElement; const emptyMsg = container.querySelector('.chart-empty');
+                    if(labels.length === 0) { if(emptyMsg) emptyMsg.classList.remove('hidden'); }
+                    else {
+                        if(emptyMsg) emptyMsg.classList.add('hidden');
+                        chartInstances.push(new Chart(canvas.getContext('2d'), {
+                            type: chartType === 'income' ? 'bar' : 'doughnut',
+                            data: { labels: labels, datasets: [{ label: chartType, data: Object.values(cats), backgroundColor: CHART_COLORS, borderWidth: 0, hoverOffset: 4 }] },
+                            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { usePointStyle: true, boxWidth: 6, font: {family: 'Manrope', size: 11} } } }, layout: { padding: 10 }, scales: chartType === 'income' ? {y:{beginAtZero:true, grid:{color:'#f3f4f6'}}} : {} }
+                        }));
+                    }
+                });
+            },
+            initDrag: () => {
+                Sortable.create(document.getElementById('block-container'), { handle: '.handle', animation: 150, ghostClass: 'opacity-50', onEnd: (evt) => { const k=`${AppState.currentMonth}-${AppState.mode}`; const b=AppState.monthlyData[k].blocks; const i=b.splice(evt.oldIndex, 1)[0]; b.splice(evt.newIndex, 0, i); app.save(); } });
+            },
+            scrollToBlock: (t) => { document.querySelectorAll('.smart-block').forEach(el => { if(el.getAttribute('data-type') === t) el.scrollIntoView({behavior:'smooth', block:'center'}); }); }
+        };
+
+        const invoice = {
+            items: [],
+            openBuilder: () => {
+                invoice.items = [];
+                document.getElementById('inv-client').value = '';
+                document.getElementById('inv-date').valueAsDate = new Date();
+                invoice.renderItems();
+                document.getElementById('modal-invoice-builder').classList.remove('hidden');
+            },
+            addItem: () => {
+                invoice.items.push({ desc: 'Service / Product', qty: 1, price: 0 });
+                invoice.renderItems();
+            },
+            updateItem: (idx, field, val) => {
+                invoice.items[idx][field] = field === 'desc' ? val : Number(val);
+                invoice.renderItems();
+            },
+            removeItem: (idx) => {
+                invoice.items.splice(idx, 1);
+                invoice.renderItems();
+            },
+            renderItems: () => {
+                const tbody = document.getElementById('inv-items-container');
+                tbody.innerHTML = '';
+                let total = 0;
+                invoice.items.forEach((item, idx) => {
+                    total += item.qty * item.price;
+                    tbody.innerHTML += `
+                    <tr>
+                        <td class="px-4 py-2"><input type="text" class="w-full border-b border-gray-200 outline-none text-sm" value="${item.desc}" onchange="invoice.updateItem(${idx}, 'desc', this.value)"></td>
+                        <td class="px-4 py-2"><input type="number" class="w-full border-b border-gray-200 outline-none text-sm text-center" value="${item.qty}" onchange="invoice.updateItem(${idx}, 'qty', this.value)"></td>
+                        <td class="px-4 py-2"><input type="number" class="w-full border-b border-gray-200 outline-none text-sm text-right" value="${item.price}" onchange="invoice.updateItem(${idx}, 'price', this.value)"></td>
+                        <td class="px-4 py-2 text-center text-gray-400 hover:text-red-500 cursor-pointer" onclick="invoice.removeItem(${idx})"><i class="fa-solid fa-trash text-xs"></i></td>
+                    </tr>`;
+                });
+                document.getElementById('inv-total-display').innerText = app.format(total);
+            },
+            generate: () => {
+                const client = document.getElementById('inv-client').value || 'Client';
+                const date = document.getElementById('inv-date').value;
+                const total = invoice.items.reduce((sum, i) => sum + (i.qty * i.price), 0);
+                
+                // Populate Print Area
+                document.getElementById('print-client').innerText = client;
+                document.getElementById('print-date').innerText = date;
+                document.getElementById('print-inv-id').innerText = Math.floor(1000 + Math.random() * 9000);
+                document.getElementById('print-total').innerText = app.format(total);
+                
+                const tbody = document.getElementById('print-items');
+                tbody.innerHTML = '';
+                invoice.items.forEach(item => {
+                    tbody.innerHTML += `
+                    <tr>
+                        <td class="py-3 text-gray-800">${item.desc}</td>
+                        <td class="py-3 text-right text-gray-600">${item.qty}</td>
+                        <td class="py-3 text-right text-gray-600">${app.format(item.price)}</td>
+                        <td class="py-3 text-right font-bold text-gray-800">${app.format(item.qty * item.price)}</td>
+                    </tr>`;
+                });
+
+                window.print();
+            }
+        };
+
+        const modal = {
+            open: (id) => {
+                document.getElementById(`modal-${id}`).classList.remove('hidden');
+                if(id==='settings') { document.getElementById('setting-name').value = AppState.settings.name; document.getElementById('setting-currency').value = AppState.settings.currency; }
+                if(id==='add-block') document.getElementById('custom-block-title').value = '';
+            },
+            closeAll: () => document.querySelectorAll('.modal-bg').forEach(e => e.classList.add('hidden'))
+        };
+        
+        window.addEventListener('DOMContentLoaded', () => { document.getElementById('login-screen').classList.remove('hidden'); });
+    </script>
+</body>
+</html>
